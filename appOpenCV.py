@@ -5,10 +5,24 @@ import tempfile
 import numpy as np
 import os
 import time
+import requests
+
+# Hugging Face model URLs
+best_model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt"
+yolov5m_model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/yolov5m.pt"
+
+# Function to download model
+@st.cache_resource
+def download_model(url):
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pt') as temp_model:
+        response = requests.get(url)
+        response.raise_for_status()
+        temp_model.write(response.content)
+        return temp_model.name
 
 # Load YOLOv5 model
-model_path = 'best.pt'
 try:
+    model_path = download_model(best_model_url)  # Change URL here if needed
     model = torch.hub.load('.', 'custom', path=model_path, source='local')
 except Exception as e:
     st.error(f"Error loading model: {e}")
