@@ -8,18 +8,11 @@ import requests
 # Hugging Face URL for the model
 model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt"
 
-@st.cache_resource
+@st.cache(allow_output_mutation=True)
 def load_model():
-    # Download and load YOLOv5 model from Hugging Face
-    model_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pt").name
-    response = requests.get(model_url)
-    response.raise_for_status()
-    with open(model_path, "wb") as f:
-        f.write(response.content)
-    model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
+    model = torch.hub.load_state_dict_from_url(model_url, map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     return model
 
-# Load YOLOv5 model
 model = load_model()
 
 # Streamlit page configuration
