@@ -1,18 +1,23 @@
 import streamlit as st
-import cv2
 import torch
 import tempfile
 from pathlib import Path
-import requests
+import cv2
 
-# Hugging Face URL for the model
+# Define model URL
 model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt"
 
+# Caching the model loading function
 @st.cache(allow_output_mutation=True)
 def load_model():
-    model = torch.hub.load_state_dict_from_url(model_url, map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+    # Load model weights from the provided URL
+    model = torch.hub.load_state_dict_from_url(
+        model_url,
+        map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    )
     return model
 
+# Load the model
 model = load_model()
 
 # Streamlit page configuration
