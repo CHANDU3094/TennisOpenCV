@@ -1,39 +1,32 @@
-# app.py
 import streamlit as st
+import cv2
 import torch
 import tempfile
 from pathlib import Path
-from io import BytesIO
-from PIL import Image, ImageDraw
-from torchvision import transforms
-import cv2
-import numpy as np
 import requests
-from torchvision.transforms import functional as F
+
+# Hugging Face URL for the model
+model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt"
+
+@st.cache_resource
+def load_model():
+    # Download and load YOLOv5 model from Hugging Face
+    model_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pt").name
+    response = requests.get(model_url)
+    response.raise_for_status()
+    with open(model_path, "wb") as f:
+        f.write(response.content)
+    model = torch.hub.load('ultralytics/yolov5', 'custom', path=model_path)
+    return model
+
+# Load YOLOv5 model
+model = load_model()
 
 # Streamlit page configuration
 st.set_page_config(page_title="Tennis Game Tracking", layout="centered")
 
 # Title of the application
 st.title("Tennis Game Tracking")
-
-# Hugging Face model URL
-model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.torchscript"
-
-@st.cache_resource
-def load_model():
-    # Load the model from Hugging Face
-    model_path = tempfile.NamedTemporaryFile(delete=False, suffix=".pt").name
-    response = requests.get(model_url)
-    response.raise_for_status()
-    with open(model_path, "wb") as f:
-        f.write(response.content)
-    model = torch.jit.load(model_path, map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-    return model
-
-# Load YOLOv5 model
-model = load_model()
-model.eval()  # Ensure the model is in evaluation mode
 
 # Initialize flags and file paths
 if 'output_path' not in st.session_state:
@@ -67,66 +60,50 @@ with col2:
     # Process Video button
     if st.button("Process Video"):
         if input_file:
-            # Create a temporary file path to store the video content
+            # Save the uploaded file temporarily
             temp_input_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
             with open(temp_input_path, "wb") as f:
                 f.write(input_file.read())
 
+            # Open the input video
             cap = cv2.VideoCapture(temp_input_path)
-            fps = int(cap.get(cv2.CAP_PROP_FPS))
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            # Create output video writer
-            temp_output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+            # Create a temporary output path
+            st.session_state.output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(temp_output_path, fourcc, fps, (width, height))
+            out = cv2.VideoWriter(st.session_state.output_path, fourcc, fps, (width, height))
 
+            # Processing each frame
+            frame_num = 0
             progress_bar = st.progress(0)
-            progress_label = st.empty()
+            progress_label = st.empty()  # To display progress percentage
 
-            # Transformation: Resize to 640x640 and convert to tensor
-            transform = transforms.Compose([
-                transforms.Resize((640, 640)),
-                transforms.ToTensor()
-            ])
-
-            frame_count = 0
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                # Convert frame to PIL Image and transform
-                pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                image_tensor = transform(pil_image).unsqueeze(0)
+                # Perform inference on the frame using YOLOv5
+                results = model(frame)
+                processed_frame = results.render()[0]
 
-                # Perform inference
-                with torch.no_grad():
-                    results = model(image_tensor)
-
-                # Render results on the frame
-                if hasattr(results, 'render'):
-                    processed_frame = np.squeeze(results.render())  # Use render if available
-                else:
-                    processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Fallback to original frame
-                
-                processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_RGB2BGR)  # Convert back to BGR for OpenCV
+                # Write the processed frame to output
                 out.write(processed_frame)
 
-                frame_count += 1
-                progress_percentage = int((frame_count / total_frames) * 100)
+                # Update progress bar
+                frame_num += 1
+                progress_percentage = int((frame_num / total_frames) * 100)
                 progress_bar.progress(progress_percentage)
                 progress_label.text(f"Processing... {progress_percentage}% complete")
 
             cap.release()
             out.release()
-
-            # Set output path for download
-            st.session_state.output_path = temp_output_path
             st.success("Video processing complete!")
-            st.session_state.show_output_video = True
+            st.session_state.show_output_video = True  # Set to True to display output video
 
         else:
             st.warning("Please select a video file to process.")
@@ -161,4 +138,4 @@ with col1:
     # Show processed output video below the input video preview
     if st.session_state.show_output_video and st.session_state.output_path:
         st.subheader("Processed Output Video:")
-        st.video(st.session_state.output_path)
+        st.video(st.session_state.output_path)  # Display the processed video
