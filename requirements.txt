@@ -1,11 +1,12 @@
 streamlit
 torch
+torchvision
+moviepy
+Pillow
+pathlib
 ultralytics
-opencv-python-headless
 numpy
 pandas
-Pillow
 matplotlib
 requests
 scipy
-torchvision
