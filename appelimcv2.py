@@ -6,9 +6,6 @@ import moviepy.editor as mp
 from io import BytesIO
 from PIL import Image
 
-# Load YOLOv5 model
-model_path = "C:/Users/gurug/yolov5/runs/train/exp4/weights/best.pt"
-
 # Load YOLOv5 model from GitHub and weights from Hugging Face
 model = torch.hub.load(
     'https://github.com/CHANDU3094/TennisOpenCV',  # Full URL to the GitHub repository
