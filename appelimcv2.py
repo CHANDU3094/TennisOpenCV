@@ -2,23 +2,20 @@ import streamlit as st
 import torch
 import tempfile
 from pathlib import Path
-import cv2
+import moviepy.editor as mp
+from io import BytesIO
+from PIL import Image
 
-# Define model URL
-model_url = "https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt"
+# Load YOLOv5 model
+model_path = "C:/Users/gurug/yolov5/runs/train/exp4/weights/best.pt"
 
-# Caching the model loading function
-@st.cache(allow_output_mutation=True)
-def load_model():
-    # Load model weights from the provided URL
-    model = torch.hub.load_state_dict_from_url(
-        model_url,
-        map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    )
-    return model
-
-# Load the model
-model = load_model()
+# Load YOLOv5 model from GitHub and weights from Hugging Face
+model = torch.hub.load(
+    'https://github.com/CHANDU3094/TennisOpenCV',  # Full URL to the GitHub repository
+    'custom', 
+    path='https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt',  # Path to weights
+    source='github'  # Indicate that the source is GitHub
+)
 
 # Streamlit page configuration
 st.set_page_config(page_title="Tennis Game Tracking", layout="centered")
@@ -58,48 +55,46 @@ with col2:
     # Process Video button
     if st.button("Process Video"):
         if input_file:
-            # Save the uploaded file temporarily
+            # Create a temporary file path to store the video content
             temp_input_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-            with open(temp_input_path, "wb") as f:
-                f.write(input_file.read())
 
-            # Open the input video
-            cap = cv2.VideoCapture(temp_input_path)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            # Write the BytesIO content to the temporary file
+            with open(temp_input_path, "wb") as temp_file:
+                temp_file.write(input_file.read())
 
-            # Create a temporary output path
-            st.session_state.output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(st.session_state.output_path, fourcc, fps, (width, height))
+            # Using MoviePy to read the video from the temporary file
+            video = mp.VideoFileClip(temp_input_path)
+
+            # Initialize a list to store processed frames
+            processed_frames = []
 
             # Processing each frame
-            frame_num = 0
             progress_bar = st.progress(0)
             progress_label = st.empty()  # To display progress percentage
-
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
+            for i, frame in enumerate(video.iter_frames(fps=video.fps, dtype="uint8")):
+                # Convert frame to PIL image for YOLOv5 processing
+                pil_image = Image.fromarray(frame)
+                
                 # Perform inference on the frame using YOLOv5
-                results = model(frame)
+                results = model(pil_image)
                 processed_frame = results.render()[0]
 
-                # Write the processed frame to output
-                out.write(processed_frame)
+                # Append processed frame to list
+                processed_frames.append(processed_frame)
 
                 # Update progress bar
-                frame_num += 1
-                progress_percentage = int((frame_num / total_frames) * 100)
+                progress_percentage = int(((i + 1) / video.reader.nframes) * 100)
                 progress_bar.progress(progress_percentage)
                 progress_label.text(f"Processing... {progress_percentage}% complete")
 
-            cap.release()
-            out.release()
+            # Create a new VideoClip from processed frames
+            processed_clip = mp.ImageSequenceClip(processed_frames, fps=video.fps)
+
+            # Write the processed video to output path
+            processed_clip.write_videofile(temp_input_path, codec="libx264")
+
+            # Set output path for download
+            st.session_state.output_path = temp_input_path
             st.success("Video processing complete!")
             st.session_state.show_output_video = True  # Set to True to display output video
 
