@@ -8,10 +8,10 @@ from PIL import Image
 
 # Load YOLOv5 model from GitHub and weights from Hugging Face
 model = torch.hub.load(
-    'https://github.com/CHANDU3094/TennisOpenCV',  # Full URL to the GitHub repository
+    'CHANDU3094/TennisOpenCV',  # Simplified repository name
     'custom', 
-    path='https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt',  # Path to weights
-    source='github'  # Indicate that the source is GitHub
+    path='https://huggingface.co/chandu3094/Streamlit/resolve/main/best.pt',  # Weights path
+    source='github'  # Explicitly specify GitHub as source
 )
 
 # Streamlit page configuration
